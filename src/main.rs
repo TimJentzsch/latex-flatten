@@ -96,7 +96,9 @@ fn process_content(entry: &DirEntry) -> Vec<u8> {
 }
 
 fn replace_imports(line: &str) -> Cow<'_, str> {
-    let reg = Regex::new(r"\\(input|include|includegraphics)(\[[^]]*\])?\{([^}]*)\}").unwrap();
+    let reg =
+        Regex::new(r"\\(input|include|includegraphics|bibliography\w*)(\[[^]]*\])?\{([^}]*)\}")
+            .unwrap();
 
     reg.replace_all(line, |capture: &Captures| {
         format!(
@@ -127,6 +129,22 @@ mod tests {
     fn test_replace_imports_include() {
         let line = r"\include{content/background}";
         let expected = r"\include{content__background}";
+
+        assert_eq!(replace_imports(line), expected);
+    }
+
+    #[test]
+    fn test_replace_imports_bibliography() {
+        let line = r"\bibliography{bibliography/references}";
+        let expected = r"\bibliography{bibliography__references}";
+
+        assert_eq!(replace_imports(line), expected);
+    }
+
+    #[test]
+    fn test_replace_imports_bibliography_custom() {
+        let line = r"\bibliographyS{bibliography/references}";
+        let expected = r"\bibliographyS{bibliography__references}";
 
         assert_eq!(replace_imports(line), expected);
     }
