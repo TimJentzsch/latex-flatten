@@ -1,14 +1,27 @@
+use clap::Parser;
 use regex::{Captures, Regex};
 use std::{
     borrow::Cow,
+    ffi::OsString,
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
     process::exit,
 };
+use thiserror::Error;
 use walkdir::{DirEntry, WalkDir};
 
-use clap::Parser;
+/// The supported types of input and output
+enum FileType {
+    Directory,
+    Zip,
+}
+
+#[derive(Debug, Error)]
+enum FileTypeError {
+    #[error("Invalid extension .{0:?}, expected zip file or directory")]
+    InvalidExtension(OsString),
+}
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -25,32 +38,74 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    println!("Flattening from {:?} to {:?}", args.path, args.out);
+    let input_path = &args.path;
+    let input_type = path_file_type(input_path).unwrap_or_else(|err| {
+        eprintln!("Input: {err}");
+        exit(1);
+    });
 
     // Sanity checks
-    if !args.path.is_dir() {
-        println!("The path must point to a directory");
-        exit(1);
+    match input_type {
+        FileType::Directory => {
+            if !input_path.is_dir() {
+                eprintln!("The input path must point to a directory");
+                exit(1);
+            }
+        }
+        FileType::Zip => {
+            if !input_path.is_file() {
+                eprintln!("The input path must point to a zip file");
+                exit(1);
+            }
+        }
     }
 
-    if args.out.exists() {
-        if args.out.is_file() {
-            println!("The out path cannot be a file");
-            exit(1);
-        } else if args.out.read_dir().unwrap().next().is_some() {
-            println!("The out directory must be empty");
-            exit(1);
+    let output_path = &args.out;
+    let output_type = path_file_type(output_path).unwrap_or_else(|err| {
+        eprintln!("Output: {err}");
+        exit(1);
+    });
+
+    match output_type {
+        FileType::Directory => {
+            if output_path.exists() {
+                if output_path.is_file() {
+                    eprintln!("Expected the output path to be an empty directory");
+                    exit(1);
+                } else if output_path.read_dir().unwrap().next().is_some() {
+                    eprintln!("The output directory must be empty");
+                    exit(1);
+                }
+            } else {
+                fs::create_dir_all(output_path).unwrap();
+            }
         }
-    } else {
-        fs::create_dir_all(&args.out).unwrap();
+        FileType::Zip => {
+            if !input_path.is_file() {
+                println!("The input path must point to a zip file");
+                exit(1);
+            }
+        }
     }
 
     // Traverse folder structure
-    WalkDir::new(&args.path)
+    WalkDir::new(input_path)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().is_file())
         .for_each(|e| process_entry(e, &args));
+}
+
+fn path_file_type(path: &Path) -> Result<FileType, FileTypeError> {
+    if let Some(extension) = path.extension() {
+        if extension.to_ascii_lowercase() == "zip" {
+            Ok(FileType::Zip)
+        } else {
+            Err(FileTypeError::InvalidExtension(extension.to_owned()))
+        }
+    } else {
+        Ok(FileType::Directory)
+    }
 }
 
 fn process_entry(entry: DirEntry, args: &Args) {
