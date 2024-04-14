@@ -12,6 +12,7 @@ use thiserror::Error;
 use walkdir::{DirEntry, WalkDir};
 
 /// The supported types of input and output
+#[derive(Debug, PartialEq, Eq)]
 enum FileType {
     Directory,
     Zip,
@@ -88,12 +89,16 @@ fn main() {
         }
     }
 
-    // Traverse folder structure
-    WalkDir::new(input_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().is_file())
-        .for_each(|e| process_entry(e, &args));
+    if input_type == FileType::Directory && output_type == FileType::Directory {
+        // Traverse folder structure
+        WalkDir::new(input_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_file())
+            .for_each(|e| process_entry(e, &args));
+    } else {
+        todo!("Support zip files")
+    }
 }
 
 fn path_file_type(path: &Path) -> Result<FileType, FileTypeError> {
