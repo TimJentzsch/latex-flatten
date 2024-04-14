@@ -10,15 +10,14 @@ use walkdir::{DirEntry, WalkDir};
 
 use clap::Parser;
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Name of the person to greet
+    /// The path of the folder containing the LaTeX project
     #[arg(short, long)]
     path: Box<Path>,
 
-    /// Number of times to greet
+    /// The path of the directory where the new project will be created
     #[arg(short, long)]
     out: Box<Path>,
 }
